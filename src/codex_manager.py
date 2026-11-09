@@ -391,7 +391,11 @@ class ManagerApp:
     def poll(self):
         try:
             while True:
-                kind, value = self.events.get_nowait()
+                item = self.events.get_nowait()
+                if not isinstance(item, tuple) or len(item) != 2:
+                    self.log("Aviso: se ha descartado un evento interno no válido.")
+                    continue
+                kind, value = item
                 if kind == "log":
                     self.log(value)
                 elif kind == "progress":
@@ -430,7 +434,16 @@ class ManagerApp:
                     self.refresh_status()
         except queue.Empty:
             pass
-        self.root.after(120, self.poll)
+        except Exception as exc:
+            # A malformed UI event must never stop the Tk event pump.
+            try:
+                self.log("ERROR interno de interfaz: " + str(exc))
+                self.progress_label.configure(text="Error interno; revisa el registro")
+            except Exception:
+                pass
+        finally:
+            if self.root.winfo_exists():
+                self.root.after(120, self.poll)
 
     def do_install(self):
         def action():
@@ -457,7 +470,10 @@ class ManagerApp:
                     self.events.put(("detail", "Ejecutable detectado: " + str(executable or INSTALL_DIR / "codex")))
                     installed_tag = installed_release_tag()
                     up_to_date = (installed_tag == tag) if installed_tag else (current == tag or current.endswith(tag.lstrip("v")))
-                    self.events.put(("status", "Codex está actualizado · Versión instalada: " + current) if up_to_date else "Hay una actualización disponible · Versión instalada: " + current)
+                    status_text = ("Codex está actualizado · Versión instalada: " + current
+                                   if up_to_date else
+                                   "Hay una actualización disponible · Versión instalada: " + current)
+                    self.events.put(("status", status_text))
                     self.events.put(("log", "Fuente: github.com/openai/codex · " + asset["name"]))
                 except Exception as exc:
                     self.events.put(("log", "No se pudo consultar la versión remota: " + str(exc)))
