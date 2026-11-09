@@ -56,19 +56,21 @@ def run_codex_version(binary):
     return result.stdout.strip().splitlines()[0]
 
 def installed_version():
-    if not INSTALL_DIR.is_dir():
-        return None
-    if VERSION_FILE.is_file():
-        value = VERSION_FILE.read_text(encoding="utf-8").strip()
-        if value:
-            return value
+    """Return the real version reported by the installed executable."""
     binary = INSTALL_DIR / "codex"
-    if binary.is_file():
-        try:
-            return run_codex_version(binary)
-        except Exception:
-            return "Instalación dañada"
-    return "Instalación incompleta"
+    if not binary.is_file():
+        return "Instalación incompleta" if INSTALL_DIR.exists() else None
+    try:
+        return run_codex_version(binary)
+    except Exception:
+        return "Instalación dañada"
+
+def installed_release_tag():
+    """Return the release tag recorded by this manager, if available."""
+    try:
+        return VERSION_FILE.read_text(encoding="utf-8").strip() or None
+    except OSError:
+        return None
 
 def is_managed_file(path, marker):
     try:
@@ -107,7 +109,6 @@ def install_or_update(progress=None, log=None):
     temp_root = Path(tempfile.mkdtemp(prefix="codex-installer-", dir=str(LOCAL_OPT)))
     staging, archive_path = temp_root / "codex", temp_root / "codex.tar.gz"
     staging.mkdir()
-    backup = LOCAL_OPT / "codex.previous"
     try:
         log("Descargando el ejecutable oficial de OpenAI…")
         req = urllib.request.Request(asset["browser_download_url"], headers={"User-Agent": USER_AGENT})
@@ -138,18 +139,14 @@ def install_or_update(progress=None, log=None):
         log("Verificando el ejecutable descargado…")
         log("Ejecutable verificado: " + run_codex_version(binary))
         progress(82)
-        if backup.exists():
-            shutil.rmtree(backup)
-        if INSTALL_DIR.exists():
-            os.replace(str(INSTALL_DIR), str(backup))
-        try:
-            os.replace(str(staging), str(INSTALL_DIR))
-        except Exception:
-            if backup.exists() and not INSTALL_DIR.exists():
-                os.replace(str(backup), str(INSTALL_DIR))
-            raise
-        if backup.exists():
-            shutil.rmtree(backup)
+        # Non-destructive update: keep the existing installation directory and
+        # every user-added file in it. Only replace the Codex executable and
+        # this manager's own version marker, after the new binary is verified.
+        INSTALL_DIR.mkdir(parents=True, exist_ok=True)
+        version_tmp = INSTALL_DIR / ".managed-version.tmp"
+        version_tmp.write_text(tag + "\\n", encoding="utf-8")
+        os.replace(str(binary), str(INSTALL_DIR / "codex"))
+        os.replace(str(version_tmp), str(VERSION_FILE))
         write_access_files()
         progress(100)
         log("Instalación completada. Se conserva la configuración de ~/.codex.")
@@ -268,10 +265,11 @@ class ManagerApp:
     def refresh_status(self):
         current = installed_version()
         if current:
-            self.status_label.configure(text="Codex detectado: " + current + " · " + str(INSTALL_DIR / "codex"))
+            self.status_label.configure(text="Versión instalada: " + current)
+            self.detail_label.configure(text="Ejecutable: " + str(INSTALL_DIR / "codex") + " · Instalación local sin root")
         else:
-            self.status_label.configure(text="Codex no está instalado en este perfil.")
-        self.detail_label.configure(text="Instalación local sin permisos de administrador · La configuración de ~/.codex se conserva.")
+            self.status_label.configure(text="Versión instalada: No instalada")
+            self.detail_label.configure(text="Instalación local sin permisos de administrador · La configuración de ~/.codex se conserva.")
 
     def start(self, action):
         if self.busy:
@@ -342,7 +340,9 @@ class ManagerApp:
                     tag, asset = latest_release()
                     self.events.put(("log", "Última versión oficial disponible: " + tag))
                     self.events.put(("detail", "Ejecutable: " + str(INSTALL_DIR / "codex")))
-                    self.events.put(("status", "Codex está actualizado" if current == tag else "Hay una actualización disponible"))
+                    installed_tag = installed_release_tag()
+                    up_to_date = (installed_tag == tag) if installed_tag else (current == tag or current.endswith(tag.lstrip("v")))
+                    self.events.put(("status", "Codex está actualizado · Versión instalada: " + current) if up_to_date else "Hay una actualización disponible · Versión instalada: " + current)
                     self.events.put(("log", "Fuente: github.com/openai/codex · " + asset["name"]))
                 except Exception as exc:
                     self.events.put(("log", "No se pudo consultar la versión remota: " + str(exc)))
