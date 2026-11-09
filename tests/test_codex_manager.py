@@ -20,6 +20,10 @@ class ReleaseMetadataTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             manager.select_linux_asset(release)
 
+    def test_chatgpt_bundled_codex_path_is_configured(self):
+        self.assertEqual(manager.BUNDLED_CHATGPT_CODEX.name, "codex")
+        self.assertEqual(manager.BUNDLED_CHATGPT_CODEX.parent.name, "resources")
+
     def test_rejects_missing_asset(self):
         with self.assertRaises(RuntimeError):
             manager.select_linux_asset({"assets": []})

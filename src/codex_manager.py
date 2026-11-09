@@ -15,6 +15,10 @@ BIN_DIR = HOME / ".local" / "bin"
 LAUNCHER = BIN_DIR / "codex"
 DESKTOP_DIR = HOME / ".local" / "share" / "applications"
 DESKTOP_FILE = DESKTOP_DIR / "codex.desktop"
+ICON_DIR = HOME / ".local" / "share" / "icons" / "hicolor" / "256x256" / "apps"
+CHATGPT_ICON_SOURCE = HOME / ".local" / "opt" / "chatgpt" / "usr" / "lib" / "chatgpt" / "resources" / "icon-chatgpt.png"
+CHATGPT_ICON = ICON_DIR / "codex-chatgpt.png"
+BUNDLED_CHATGPT_CODEX = HOME / ".local" / "opt" / "chatgpt" / "usr" / "lib" / "chatgpt" / "resources" / "codex"
 VERSION_FILE = INSTALL_DIR / ".managed-version"
 USER_AGENT = "Codex-Installer-Updater-Punto-Vuela-Montejaque"
 LAUNCHER_MARKER = "# managed-by: codex-installer-punto-vuela"
@@ -83,7 +87,7 @@ def run_codex_version(binary):
 
 def find_codex_executable():
     """Find the user's existing Codex CLI without requiring a login-shell PATH."""
-    candidates = [INSTALL_DIR / "codex", BIN_DIR / "codex"]
+    candidates = [INSTALL_DIR / "codex", BIN_DIR / "codex", BUNDLED_CHATGPT_CODEX]
     path_env = runtime_environment()
     path_hit = shutil.which("codex", path=path_env)
     if path_hit:
@@ -159,11 +163,16 @@ def write_access_files():
     check_access_conflicts()
     BIN_DIR.mkdir(parents=True, exist_ok=True)
     DESKTOP_DIR.mkdir(parents=True, exist_ok=True)
+    icon_value = "openai"
+    if CHATGPT_ICON_SOURCE.is_file():
+        ICON_DIR.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(str(CHATGPT_ICON_SOURCE), str(CHATGPT_ICON))
+        icon_value = str(CHATGPT_ICON)
     LAUNCHER.write_text('#!/bin/sh\n' + LAUNCHER_MARKER + '\nexec "$HOME/.local/opt/codex/codex" "$@"\n', encoding="utf-8")
     LAUNCHER.chmod(0o755)
     desktop = ("[Desktop Entry]\nVersion=1.0\nType=Application\nName=Codex CLI\n"
         "GenericName=Agente de programación\nComment=Inicia OpenAI Codex CLI en un terminal\n"
-        "Exec=" + str(LAUNCHER) + "\nIcon=utilities-terminal\nTerminal=true\nCategories=Development;IDE;\n"
+        "Exec=" + str(LAUNCHER) + "\nIcon=" + icon_value + "\nTerminal=true\nCategories=Development;IDE;\n"
         + DESKTOP_MARKER + "\n")
     DESKTOP_FILE.write_text(desktop, encoding="utf-8")
     DESKTOP_FILE.chmod(0o644)
@@ -236,6 +245,13 @@ def uninstall_managed():
         if is_managed_file(path, marker):
             path.unlink()
             removed.append(str(path))
+    # Remove only the icon copy created by this manager; never touch ChatGPT originals.
+    try:
+        if CHATGPT_ICON.is_file():
+            CHATGPT_ICON.unlink()
+            removed.append(str(CHATGPT_ICON))
+    except OSError:
+        pass
     return removed
 
 class ManagerApp:
