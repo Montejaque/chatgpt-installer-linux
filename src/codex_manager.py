@@ -55,15 +55,50 @@ def run_codex_version(binary):
         raise RuntimeError(result.stdout.strip() or "No se pudo ejecutar Codex.")
     return result.stdout.strip().splitlines()[0]
 
-def installed_version():
-    """Return the real version reported by the installed executable."""
-    binary = INSTALL_DIR / "codex"
-    if not binary.is_file():
-        return "Instalación incompleta" if INSTALL_DIR.exists() else None
+def find_codex_executable():
+    """Find Codex in the managed location, PATH, and common per-user npm/NVM paths."""
+    candidates = [INSTALL_DIR / "codex"]
+    path_hit = shutil.which("codex")
+    if path_hit:
+        candidates.append(Path(path_hit))
+    candidates.extend([
+        BIN_DIR / "codex",
+        HOME / ".npm-global" / "bin" / "codex",
+        Path("/usr/local/bin/codex"),
+        Path("/usr/bin/codex"),
+    ])
+    nvm_root = HOME / ".nvm" / "versions" / "node"
+    if nvm_root.is_dir():
+        for node_bin in sorted(nvm_root.glob("*/bin"), reverse=True):
+            candidates.append(node_bin / "codex")
+    seen = set()
+    for candidate in candidates:
+        try:
+            resolved = candidate.expanduser().resolve(strict=True)
+            key = str(resolved)
+            if key in seen:
+                continue
+            seen.add(key)
+            if resolved.is_file() and os.access(str(resolved), os.X_OK):
+                return resolved
+        except (OSError, RuntimeError):
+            continue
+    return None
+
+def installed_details():
+    """Return (version, executable path), including installations outside this manager."""
+    binary = find_codex_executable()
+    if binary is None:
+        if INSTALL_DIR.exists():
+            return "Instalación incompleta", str(INSTALL_DIR / "codex")
+        return None, None
     try:
-        return run_codex_version(binary)
+        return run_codex_version(binary), str(binary)
     except Exception:
-        return "Instalación dañada"
+        return "Instalación dañada", str(binary)
+
+def installed_version():
+    return installed_details()[0]
 
 def installed_release_tag():
     """Return the release tag recorded by this manager, if available."""
@@ -263,13 +298,13 @@ class ManagerApp:
         self.log_box.configure(state="disabled")
 
     def refresh_status(self):
-        current = installed_version()
+        current, executable = installed_details()
         if current:
             self.status_label.configure(text="Versión instalada: " + current)
-            self.detail_label.configure(text="Ejecutable: " + str(INSTALL_DIR / "codex") + " · Instalación local sin root")
+            self.detail_label.configure(text="Ejecutable detectado: " + str(executable))
         else:
             self.status_label.configure(text="Versión instalada: No instalada")
-            self.detail_label.configure(text="Instalación local sin permisos de administrador · La configuración de ~/.codex se conserva.")
+            self.detail_label.configure(text="No se ha encontrado el comando codex en las rutas habituales ni en PATH.")
 
     def start(self, action):
         if self.busy:
@@ -333,13 +368,15 @@ class ManagerApp:
     def do_check(self):
         def action():
             self.events.put(("log", "Comprobando instalaciones de Codex…"))
-            current = installed_version()
+            current, executable = installed_details()
             self.events.put(("log", "Versión instalada: " + (current or "No instalada")))
+            if executable:
+                self.events.put(("log", "Ejecutable detectado: " + executable))
             if current and current != "Instalación dañada" and current != "Instalación incompleta":
                 try:
                     tag, asset = latest_release()
                     self.events.put(("log", "Última versión oficial disponible: " + tag))
-                    self.events.put(("detail", "Ejecutable: " + str(INSTALL_DIR / "codex")))
+                    self.events.put(("detail", "Ejecutable detectado: " + str(executable or INSTALL_DIR / "codex")))
                     installed_tag = installed_release_tag()
                     up_to_date = (installed_tag == tag) if installed_tag else (current == tag or current.endswith(tag.lstrip("v")))
                     self.events.put(("status", "Codex está actualizado · Versión instalada: " + current) if up_to_date else "Hay una actualización disponible · Versión instalada: " + current)
