@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Per-user graphical manager for the official OpenAI Codex CLI binary."""
-import json, os, queue, shutil, subprocess, sys, tarfile, tempfile, threading, urllib.request
+import json, os, queue, shutil, subprocess, sys, tarfile, tempfile, threading, urllib.request, webbrowser
 from pathlib import Path
 import tkinter as tk
 from tkinter import messagebox, ttk
@@ -173,59 +173,91 @@ def uninstall_managed():
     return removed
 
 class ManagerApp:
-    BG, PANEL, YELLOW, FG, MUTED = "#171717", "#242424", "#F3D54E", "#F5F5F2", "#B8B8B2"
+    """Interfaz alineada con VS Code Installer & Updater de Punto Vuela."""
     def __init__(self, root):
         self.root = root
-        root.title(APP_NAME)
-        root.geometry("760x610")
-        root.minsize(680, 540)
-        root.configure(bg=self.BG)
+        root.title("Codex Installer & Updater — Punto Vuela Montejaque")
+        root.geometry("775x610")
+        root.minsize(700, 560)
+        root.configure(bg="white")
         self.events = queue.Queue()
         self.busy = False
-        style = ttk.Style()
-        style.theme_use("clam")
-        style.configure("TProgressbar", troughcolor="#3A3A3A", background=self.YELLOW, bordercolor="#3A3A3A")
         self.build()
         self.refresh_status()
         root.after(120, self.poll)
 
     def build(self):
-        header = tk.Frame(self.root, bg=self.BG, padx=26, pady=22)
-        header.pack(fill="x")
-        tk.Label(header, text="CODEX  /  LINUX x86_64", bg=self.BG, fg=self.YELLOW, font=("DejaVu Sans", 9, "bold")).pack(anchor="w")
-        tk.Label(header, text="Installer & Updater", bg=self.BG, fg=self.FG, font=("DejaVu Sans", 25, "bold")).pack(anchor="w", pady=(5, 2))
-        tk.Label(header, text="Gestor gráfico de Codex CLI · Punto Vuela Montejaque", bg=self.BG, fg=self.MUTED, font=("DejaVu Sans", 10)).pack(anchor="w")
-        status = tk.Frame(self.root, bg=self.PANEL, padx=18, pady=15)
-        status.pack(fill="x", padx=26, pady=(0, 16))
-        self.status_label = tk.Label(status, text="Comprobando estado…", bg=self.PANEL, fg=self.FG, font=("DejaVu Sans", 11, "bold"))
-        self.status_label.pack(anchor="w")
-        self.detail_label = tk.Label(status, text="", bg=self.PANEL, fg=self.MUTED, font=("DejaVu Sans", 9))
-        self.detail_label.pack(anchor="w", pady=(5, 0))
-        actions = tk.Frame(self.root, bg=self.BG, padx=26)
-        actions.pack(fill="x")
-        self.install_btn = self.button(actions, "Instalar / actualizar", self.do_install, True)
-        self.check_btn = self.button(actions, "Comprobar versión", self.do_check)
-        self.repair_btn = self.button(actions, "Reparar accesos", self.do_repair)
-        self.remove_btn = self.button(actions, "Desinstalar", self.do_uninstall)
-        self.install_btn.pack(fill="x", pady=4)
-        row = tk.Frame(actions, bg=self.BG)
-        row.pack(fill="x", pady=(4, 0))
-        for i, btn in enumerate((self.check_btn, self.repair_btn, self.remove_btn)):
-            btn.pack(in_=row, side="left", fill="x", expand=True, padx=(0 if i == 0 else 4, 4 if i < 2 else 0))
-        self.progress = ttk.Progressbar(self.root, mode="determinate", maximum=100)
-        self.progress.pack(fill="x", padx=26, pady=(18, 10))
-        tk.Label(self.root, text="ACTIVIDAD", bg=self.BG, fg=self.YELLOW, font=("DejaVu Sans", 8, "bold")).pack(anchor="w", padx=28)
-        self.log_box = tk.Text(self.root, height=10, bg="#101010", fg="#E7E7E2", insertbackground=self.FG,
-            relief="flat", wrap="word", font=("DejaVu Sans Mono", 8), padx=12, pady=10)
-        self.log_box.pack(fill="both", expand=True, padx=26, pady=(6, 16))
-        self.log_box.configure(state="disabled")
-        tk.Label(self.root, text="Desarrollador: Francisco Javier Gallego Orellana  ·  Punto Vuela Montejaque",
-            bg=self.BG, fg=self.MUTED, font=("DejaVu Sans", 7)).pack(anchor="e", padx=26, pady=(0, 10))
+        outer = tk.Frame(self.root, bg="white", padx=22, pady=18)
+        outer.pack(fill="both", expand=True)
 
-    def button(self, parent, label, command, primary=False):
-        return tk.Button(parent, text=label, command=command, bg=self.YELLOW if primary else self.PANEL,
-            fg="#171717" if primary else self.FG, activebackground="#FFE77B", activeforeground="#171717",
-            relief="flat", bd=0, font=("DejaVu Sans", 9, "bold"), padx=12, pady=10, cursor="hand2")
+        tk.Label(outer, text="Codex Installer & Updater", bg="white", fg="black",
+                 font=("DejaVu Sans", 21, "bold")).pack(anchor="w")
+        tk.Label(outer, text="Linux x64 · Sin root · Punto Vuela Montejaque",
+                 bg="white", fg="#222222", font=("DejaVu Sans", 9)).pack(anchor="w", pady=(3, 15))
+
+        tk.Frame(outer, bg="#F3D54E", height=4).pack(fill="x", pady=(0, 20))
+
+        self.status_label = tk.Label(outer, text="Comprobando instalación de Codex…",
+            bg="white", fg="black", font=("DejaVu Sans", 9), anchor="w")
+        self.status_label.pack(fill="x", pady=(0, 16))
+        self.detail_label = tk.Label(outer, text="", bg="white", fg="#333333",
+            font=("DejaVu Sans", 8), anchor="w")
+        self.detail_label.pack(fill="x", pady=(0, 14))
+
+        actions = tk.Frame(outer, bg="white")
+        actions.pack(fill="x", pady=(0, 12))
+        self.install_btn = self.button(actions, "Instalar / actualizar", self.do_install)
+        self.check_btn = self.button(actions, "Comprobar versión", self.do_check)
+        self.repair_btn = self.button(actions, "Reparar acceso", self.do_repair)
+        self.remove_btn = self.button(actions, "Desinstalar y eliminar datos", self.do_uninstall)
+        for i, btn in enumerate((self.install_btn, self.check_btn, self.repair_btn, self.remove_btn)):
+            btn.pack(side="left", padx=(0 if i == 0 else 8, 0), fill="x", expand=True)
+
+        self.progress_label = tk.Label(outer, text="Preparado", bg="white", fg="#222222",
+            font=("DejaVu Sans", 8), anchor="w")
+        self.progress_label.pack(fill="x", pady=(0, 4))
+        style = ttk.Style()
+        try:
+            style.theme_use("clam")
+        except tk.TclError:
+            pass
+        style.configure("Codex.Horizontal.TProgressbar", troughcolor="#D8D6D0",
+                        background="#B7B3A9", bordercolor="#B7B3A9", lightcolor="#B7B3A9",
+                        darkcolor="#B7B3A9")
+        self.progress = ttk.Progressbar(outer, mode="determinate", maximum=100,
+                                        style="Codex.Horizontal.TProgressbar")
+        self.progress.pack(fill="x", pady=(0, 8))
+
+        self.log_box = tk.Text(outer, height=12, bg="#FAFAFA", fg="black",
+            insertbackground="black", relief="solid", bd=1, wrap="word",
+            font=("DejaVu Sans Mono", 8), padx=3, pady=3)
+        self.log_box.pack(fill="both", expand=True)
+        self.log_box.configure(state="disabled")
+
+        footer = tk.Frame(outer, bg="white")
+        footer.pack(fill="x", pady=(10, 0))
+        contact = tk.Frame(footer, bg="white")
+        contact.pack(side="left", fill="x", expand=True)
+        tk.Label(contact, text="Desarrollador: Francisco Javier Gallego Orellana",
+            bg="white", fg="black", font=("DejaVu Sans", 8, "bold")).pack(anchor="w")
+        tk.Label(contact, text="Punto Vuela Montejaque · Avenida Andalucía, 48 · 29360 Montejaque (Málaga)",
+            bg="white", fg="#222222", font=("DejaVu Sans", 8)).pack(anchor="w", pady=(2, 0))
+        tk.Label(contact, text="Teléfono: 633 402 959 · Correo: montejaque@puntosvuela.es",
+            bg="white", fg="#222222", font=("DejaVu Sans", 8)).pack(anchor="w")
+        self.guide_btn = tk.Button(footer, text="Ver guía de uso", command=self.open_guide,
+            relief="raised", bd=1, font=("DejaVu Sans", 8), padx=8, pady=5)
+        self.guide_btn.pack(side="right", anchor="s", padx=(8, 0), pady=(35, 0))
+
+    def button(self, parent, label, command):
+        return tk.Button(parent, text=label, command=command, relief="raised", bd=1,
+            font=("DejaVu Sans", 8), padx=7, pady=5, cursor="hand2")
+
+    def open_guide(self):
+        guide = (HOME / ".local" / "share" / "doc" / "codex-installer" / "Guia-Codex-Installer-Puntos-Vuela-Montejaque.pdf")
+        if guide.is_file():
+            webbrowser.open(guide.as_uri())
+        else:
+            webbrowser.open("https://github.com/Montejaque/chatgpt-installer-linux/releases/latest")
 
     def log(self, text):
         self.log_box.configure(state="normal")
@@ -235,14 +267,18 @@ class ManagerApp:
 
     def refresh_status(self):
         current = installed_version()
-        self.status_label.configure(text=("Codex instalado · " + current) if current else "Codex todavía no está instalado")
-        self.detail_label.configure(text="Ubicación: " + str(INSTALL_DIR) if current else "La instalación se guarda en tu carpeta personal.")
+        if current:
+            self.status_label.configure(text="Codex detectado: " + current + " · " + str(INSTALL_DIR / "codex"))
+        else:
+            self.status_label.configure(text="Codex no está instalado en este perfil.")
+        self.detail_label.configure(text="Instalación local sin permisos de administrador · La configuración de ~/.codex se conserva.")
 
     def start(self, action):
         if self.busy:
             return
         self.busy = True
         self.progress["value"] = 0
+        self.progress_label.configure(text="En curso…")
         for button in (self.install_btn, self.check_btn, self.repair_btn, self.remove_btn):
             button.configure(state="disabled")
         def worker():
@@ -266,13 +302,20 @@ class ManagerApp:
                     self.status_label.configure(text=value)
                 elif kind == "detail":
                     self.detail_label.configure(text=value)
+                elif kind == "progress_text":
+                    self.progress_label.configure(text=value)
                 elif kind == "error":
                     self.log("ERROR: " + value)
+                    self.progress_label.configure(text="Operación no completada")
                     messagebox.showerror("No se pudo completar la operación", value, parent=self.root)
                 elif kind == "done":
                     self.busy = False
                     for button in (self.install_btn, self.check_btn, self.repair_btn, self.remove_btn):
                         button.configure(state="normal")
+                    if self.progress["value"] >= 100:
+                        self.progress_label.configure(text="Completado")
+                    elif self.progress_label.cget("text") == "En curso…":
+                        self.progress_label.configure(text="Preparado")
                     self.refresh_status()
         except queue.Empty:
             pass
@@ -280,35 +323,57 @@ class ManagerApp:
 
     def do_install(self):
         def action():
-            tag = install_or_update(lambda n: self.events.put(("progress", n)), lambda s: self.events.put(("log", s)))
-            self.events.put(("status", "Codex instalado · " + tag))
+            self.events.put(("log", "Instalando o actualizando Codex CLI desde la publicación oficial de OpenAI…"))
+            tag = install_or_update(lambda n: self.events.put(("progress", n)),
+                                    lambda s: self.events.put(("log", s)))
+            self.events.put(("progress", 100))
+            self.events.put(("progress_text", "Instalación completada"))
+            self.events.put(("status", "Codex instalado: " + tag))
+            self.events.put(("log", "Resultado: instalación completada correctamente."))
         self.start(action)
 
     def do_check(self):
         def action():
-            self.events.put(("log", "Consultando la publicación oficial de OpenAI…"))
-            tag, asset = latest_release()
+            self.events.put(("log", "Comprobando instalaciones de Codex…"))
             current = installed_version()
-            self.events.put(("log", "Última versión disponible: " + tag))
             self.events.put(("log", "Versión instalada: " + (current or "No instalada")))
-            self.events.put(("status", "Actualización disponible" if current != tag else "Codex está actualizado"))
-            self.events.put(("detail", "Fuente oficial: github.com/openai/codex · " + asset["name"]))
+            if current and current != "Instalación dañada" and current != "Instalación incompleta":
+                try:
+                    tag, asset = latest_release()
+                    self.events.put(("log", "Última versión oficial disponible: " + tag))
+                    self.events.put(("detail", "Ejecutable: " + str(INSTALL_DIR / "codex")))
+                    self.events.put(("status", "Codex está actualizado" if current == tag else "Hay una actualización disponible"))
+                    self.events.put(("log", "Fuente: github.com/openai/codex · " + asset["name"]))
+                except Exception as exc:
+                    self.events.put(("log", "No se pudo consultar la versión remota: " + str(exc)))
+            else:
+                tag, asset = latest_release()
+                self.events.put(("log", "Última versión oficial disponible: " + tag))
+                self.events.put(("detail", "Fuente oficial: github.com/openai/codex"))
+            self.events.put(("progress", 100))
         self.start(action)
 
     def do_repair(self):
-        self.start(lambda: self.events.put(("log", repair_access())))
+        def action():
+            self.events.put(("log", "Reparando accesos de Codex…"))
+            self.events.put(("log", repair_access()))
+            self.events.put(("progress", 100))
+        self.start(action)
 
     def do_uninstall(self):
         if not messagebox.askyesno("Confirmar desinstalación",
-            "Se eliminará la copia gestionada de Codex y sus accesos.\n\nSe conservarán ~/.codex, credenciales, sesiones y configuración.",
+            "Se eliminarán la aplicación Codex CLI gestionada por este instalador y sus accesos directos.\n\n"
+            "Se conservarán ~/.codex, credenciales, sesiones y configuración personal.",
             parent=self.root):
             return
         def action():
+            self.events.put(("log", "Desinstalando la copia gestionada de Codex…"))
             removed = uninstall_managed()
             self.events.put(("log", "Desinstalación completada."))
             for item in removed:
                 self.events.put(("log", "Eliminado: " + item))
-            self.events.put(("log", "Se ha conservado ~/.codex."))
+            self.events.put(("log", "Se ha conservado ~/.codex y todos sus datos personales."))
+            self.events.put(("progress", 100))
         self.start(action)
 
 def main():
