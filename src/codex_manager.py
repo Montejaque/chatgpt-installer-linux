@@ -360,13 +360,16 @@ class ManagerApp:
         self.log_box.configure(state="disabled")
 
     def refresh_status(self):
-        current, executable = installed_details()
-        if current:
-            self.status_label.configure(text="Versión instalada: " + current)
-            self.detail_label.configure(text="Ejecutable detectado: " + str(executable))
-        else:
-            self.status_label.configure(text="Versión instalada: No instalada")
-            self.detail_label.configure(text="No se ha encontrado el comando codex en las rutas habituales ni en PATH.")
+        """Refresh detected installation without blocking Tk's main event loop."""
+        self.status_label.configure(text="Comprobando instalación de Codex…")
+        self.detail_label.configure(text="Consultando el ejecutable detectado…")
+        def worker():
+            try:
+                current, executable = installed_details()
+                self.events.put(("detected_status", (current, executable)))
+            except Exception as exc:
+                self.events.put(("detected_status_error", str(exc)))
+        threading.Thread(target=worker, daemon=True).start()
 
     def start(self, action):
         if self.busy:
@@ -397,6 +400,18 @@ class ManagerApp:
                     self.status_label.configure(text=value)
                 elif kind == "detail":
                     self.detail_label.configure(text=value)
+                elif kind == "detected_status":
+                    current, executable = value
+                    if current:
+                        self.status_label.configure(text="Versión instalada: " + current)
+                        self.detail_label.configure(text="Ejecutable detectado: " + str(executable))
+                    else:
+                        self.status_label.configure(text="Versión instalada: No instalada")
+                        self.detail_label.configure(text="No se ha encontrado el comando codex en las rutas habituales ni en PATH.")
+                elif kind == "detected_status_error":
+                    self.status_label.configure(text="No se pudo comprobar la instalación")
+                    self.detail_label.configure(text=value)
+                    self.log("ERROR al comprobar instalación: " + value)
                 elif kind == "progress_text":
                     self.progress_label.configure(text=value)
                 elif kind == "error":
@@ -411,6 +426,7 @@ class ManagerApp:
                         self.progress_label.configure(text="Completado")
                     elif self.progress_label.cget("text") == "En curso…":
                         self.progress_label.configure(text="Preparado")
+                    # Never run codex --version on Tk's main thread.
                     self.refresh_status()
         except queue.Empty:
             pass
