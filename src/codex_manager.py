@@ -17,6 +17,8 @@ DESKTOP_DIR = HOME / ".local" / "share" / "applications"
 DESKTOP_FILE = DESKTOP_DIR / "codex.desktop"
 VERSION_FILE = INSTALL_DIR / ".managed-version"
 USER_AGENT = "Codex-Installer-Updater-Punto-Vuela-Montejaque"
+LAUNCHER_MARKER = "# managed-by: codex-installer-punto-vuela"
+DESKTOP_MARKER = "X-Codex-Installer-Managed=true"
 
 def http_json(url):
     req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/vnd.github+json"})
@@ -68,22 +70,37 @@ def installed_version():
             return "Instalación dañada"
     return "Instalación incompleta"
 
+def is_managed_file(path, marker):
+    try:
+        return path.is_file() and marker in path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        return False
+
+def check_access_conflicts():
+    if (LAUNCHER.exists() or LAUNCHER.is_symlink()) and not is_managed_file(LAUNCHER, LAUNCHER_MARKER):
+        raise RuntimeError("Ya existe ~/.local/bin/codex y no pertenece a este gestor. No se sobrescribirá.")
+    if (DESKTOP_FILE.exists() or DESKTOP_FILE.is_symlink()) and not is_managed_file(DESKTOP_FILE, DESKTOP_MARKER):
+        raise RuntimeError("Ya existe el acceso codex.desktop y no pertenece a este gestor. No se sobrescribirá.")
+
 def write_access_files():
     if not (INSTALL_DIR / "codex").is_file():
         raise RuntimeError("No se encuentra Codex. Instala o actualiza primero.")
+    check_access_conflicts()
     BIN_DIR.mkdir(parents=True, exist_ok=True)
     DESKTOP_DIR.mkdir(parents=True, exist_ok=True)
-    LAUNCHER.write_text('#!/bin/sh\nexec "$HOME/.local/opt/codex/codex" "$@"\n', encoding="utf-8")
+    LAUNCHER.write_text('#!/bin/sh\n' + LAUNCHER_MARKER + '\nexec "$HOME/.local/opt/codex/codex" "$@"\n', encoding="utf-8")
     LAUNCHER.chmod(0o755)
     desktop = ("[Desktop Entry]\nVersion=1.0\nType=Application\nName=Codex CLI\n"
         "GenericName=Agente de programación\nComment=Inicia OpenAI Codex CLI en un terminal\n"
-        "Exec=" + str(LAUNCHER) + "\nIcon=utilities-terminal\nTerminal=true\nCategories=Development;IDE;\n")
+        "Exec=" + str(LAUNCHER) + "\nIcon=utilities-terminal\nTerminal=true\nCategories=Development;IDE;\n"
+        + DESKTOP_MARKER + "\n")
     DESKTOP_FILE.write_text(desktop, encoding="utf-8")
     DESKTOP_FILE.chmod(0o644)
 
 def install_or_update(progress=None, log=None):
     progress = progress or (lambda value: None)
     log = log or (lambda value: None)
+    check_access_conflicts()
     LOCAL_OPT.mkdir(parents=True, exist_ok=True)
     tag, asset = latest_release()
     log("Última versión oficial: " + tag)
@@ -149,12 +166,10 @@ def uninstall_managed():
     if INSTALL_DIR.exists():
         shutil.rmtree(INSTALL_DIR)
         removed.append(str(INSTALL_DIR))
-    for path in (LAUNCHER, DESKTOP_FILE):
-        try:
+    for path, marker in ((LAUNCHER, LAUNCHER_MARKER), (DESKTOP_FILE, DESKTOP_MARKER)):
+        if is_managed_file(path, marker):
             path.unlink()
             removed.append(str(path))
-        except FileNotFoundError:
-            pass
     return removed
 
 class ManagerApp:
@@ -298,6 +313,11 @@ class ManagerApp:
 
 def main():
     if "--self-test" in sys.argv:
+        try:
+            tk.Tcl()
+        except Exception as exc:
+            print("Tkinter self-test failed: " + str(exc), file=sys.stderr)
+            return 1
         print("Codex Installer & Updater: self-test OK")
         return 0
     if "--version" in sys.argv:
