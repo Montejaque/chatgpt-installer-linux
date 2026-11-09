@@ -179,7 +179,7 @@ def install_or_update(progress=None, log=None):
         # this manager's own version marker, after the new binary is verified.
         INSTALL_DIR.mkdir(parents=True, exist_ok=True)
         version_tmp = INSTALL_DIR / ".managed-version.tmp"
-        version_tmp.write_text(tag + "\\n", encoding="utf-8")
+        version_tmp.write_text(tag + "\n", encoding="utf-8")
         os.replace(str(binary), str(INSTALL_DIR / "codex"))
         os.replace(str(version_tmp), str(VERSION_FILE))
         write_access_files()
