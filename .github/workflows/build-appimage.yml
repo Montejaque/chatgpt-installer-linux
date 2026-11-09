@@ -1,68 +1,85 @@
-name: Build and publish ChatGPT Installer AppImage
+name: Build Codex Installer AppImage and Release
 
 on:
   push:
     branches: [main]
-    tags: ['v*']
   workflow_dispatch:
 
 permissions:
   contents: write
 
 concurrency:
-  group: chatgpt-installer-release-${{ github.ref }}
+  group: codex-installer-release
   cancel-in-progress: false
 
 jobs:
-  appimage:
+  build:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
-      - name: Build against Ubuntu 20.04 libraries
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Build AppImage and guide in Ubuntu 20.04 userspace
         run: |
+          mkdir -p dist
           docker run --rm -v "$PWD:/work" -w /work ubuntu:20.04 bash -lc '
             set -eux
             export DEBIAN_FRONTEND=noninteractive
             apt-get update
-            apt-get install -y python3 python3-pip python3-tk python3-dev build-essential
-            python3 -m pip install --user --upgrade "pip<22" "pyinstaller==6.19.0"
+            apt-get install -y python3 python3-pip python3-tk python3-dev build-essential curl file squashfs-tools libfuse2
+            python3 -m pip install --user --upgrade "pip<22" "pyinstaller==6.19.0" "reportlab==4.4.9"
             export PATH="$HOME/.local/bin:$PATH"
-            python3 -m PyInstaller --noconfirm --clean --onefile --name chatgpt-installer src/chatgpt_manager.py
-            test -s dist/chatgpt-installer
+            python3 -m unittest discover -s tests -v
+            python3 -m py_compile src/codex_manager.py docs/generate_guide.py
+            python3 -m PyInstaller --noconfirm --clean --onefile --name codex-installer src/codex_manager.py
+            test -s dist/codex-installer
+            python3 docs/generate_guide.py dist/Guia-Codex-Installer-Puntos-Vuela-Montejaque.pdf
+            test -s dist/Guia-Codex-Installer-Puntos-Vuela-Montejaque.pdf
           '
           sudo chown -R "$(id -u):$(id -g)" dist
       - name: Prepare AppDir
         run: |
-          mkdir -p AppDir/usr/bin dist
-          install -m 0755 dist/chatgpt-installer AppDir/usr/bin/chatgpt-installer
+          mkdir -p AppDir/usr/bin
+          install -m 0755 dist/codex-installer AppDir/usr/bin/codex-installer
           chmod +x AppDir/AppRun
           sudo apt-get update
-          sudo apt-get install -y squashfs-tools file desktop-file-utils
-          desktop-file-validate AppDir/chatgpt-installer.desktop
+          sudo apt-get install -y desktop-file-utils
+          desktop-file-validate AppDir/codex-installer.desktop
       - name: Download appimagetool
         run: |
           curl --fail --location --retry 3 https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage --output appimagetool
           chmod +x appimagetool
-      - name: Build AppImage
+      - name: Build and smoke-test AppImage
         env:
           ARCH: x86_64
           APPIMAGE_EXTRACT_AND_RUN: '1'
         run: |
-          ./appimagetool AppDir dist/ChatGPT-Installer-x86_64.AppImage
-          chmod +x dist/ChatGPT-Installer-x86_64.AppImage
-          test -s dist/ChatGPT-Installer-x86_64.AppImage
+          ./appimagetool AppDir dist/Codex-Installer-Updater-x86_64.AppImage
+          chmod +x dist/Codex-Installer-Updater-x86_64.AppImage
+          test -s dist/Codex-Installer-Updater-x86_64.AppImage
+          APPIMAGE_EXTRACT_AND_RUN=1 dist/Codex-Installer-Updater-x86_64.AppImage --self-test
+      - name: Create checksums
+        run: |
+          cd dist
+          sha256sum Codex-Installer-Updater-x86_64.AppImage Guia-Codex-Installer-Puntos-Vuela-Montejaque.pdf > SHA256SUMS.txt
+          cat SHA256SUMS.txt
       - uses: actions/upload-artifact@v4
         with:
-          name: ChatGPT-Installer-x86_64-AppImage
-          path: dist/ChatGPT-Installer-x86_64.AppImage
+          name: Codex-Installer-Updater-Linux-x86_64
+          path: |
+            dist/Codex-Installer-Updater-x86_64.AppImage
+            dist/Guia-Codex-Installer-Puntos-Vuela-Montejaque.pdf
+            dist/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 30
       - name: Publish GitHub Release
-        if: github.event_name == 'push'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v1.0.{0}', github.run_number) }}
+          tag_name: v1.0.${{ github.run_number }}
           target_commitish: main
-          name: ChatGPT Installer ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v1.0.{0}', github.run_number) }}
+          name: Codex Installer & Updater v1.0.${{ github.run_number }}
           generate_release_notes: true
-          files: dist/ChatGPT-Installer-x86_64.AppImage
+          files: |
+            dist/Codex-Installer-Updater-x86_64.AppImage
+            dist/Guia-Codex-Installer-Puntos-Vuela-Montejaque.pdf
+            dist/SHA256SUMS.txt
+          fail_on_unmatched_files: true

@@ -1,79 +1,72 @@
-# ChatGPT & Codex Installer — Punto Vuela Montejaque
+# Codex Installer & Updater — Punto Vuela Montejaque
 
-Gestor gráfico para descargar, extraer, instalar por usuario, actualizar, comprobar y reparar el acceso a la aplicación oficial ChatGPT para Linux (incluye Codex).
+Gestor gráfico para **OpenAI Codex CLI** en Linux x86_64. Permite consultar la versión oficial, instalar, actualizar, comprobar la instalación, reparar accesos y desinstalar la copia administrada.
 
-**No requiere root, sudo, APT ni instalación en directorios del sistema.** Extrae el `.deb` oficial con `dpkg-deb -x` dentro de `~/.local/opt/chatgpt`; no ejecuta `dpkg -i` ni instala dependencias del sistema.
+> Este proyecto instala **Codex CLI**, el agente de programación que funciona en terminal. No instala ChatGPT Desktop ni la aplicación de escritorio Codex.
 
-> **Compatibilidad:** OpenAI indica soporte oficial para Ubuntu 24.04/26.04, Debian 13, Fedora 43/44 y Arch actual. Ubuntu 20.04 no está soportado oficialmente. El gestor puede probarse allí, pero no garantiza que la aplicación arranque.
+## Descarga
 
-## Descargar
+- [Último Release y AppImage](https://github.com/Montejaque/chatgpt-installer-linux/releases/latest)
+- [Todos los Releases](https://github.com/Montejaque/chatgpt-installer-linux/releases)
+- [Compilaciones de GitHub Actions](https://github.com/Montejaque/chatgpt-installer-linux/actions)
 
-- [Última versión y AppImage](https://github.com/Montejaque/chatgpt-installer-linux/releases/latest)
-- [Todas las versiones](https://github.com/Montejaque/chatgpt-installer-linux/releases)
-- [GitHub Actions](https://github.com/Montejaque/chatgpt-installer-linux/actions)
+Descarga **Codex-Installer-Updater-x86_64.AppImage**, dale permiso de ejecución y ábrelo:
 
-Descarga `ChatGPT-Installer-x86_64.AppImage`, dale permiso de ejecución y ábrelo:
+    chmod +x Codex-Installer-Updater-x86_64.AppImage
+    ./Codex-Installer-Updater-x86_64.AppImage
 
-```bash
-chmod +x ChatGPT-Installer-x86_64.AppImage
-./ChatGPT-Installer-x86_64.AppImage
-```
-
-El AppImage es el gestor, no contiene la aplicación ChatGPT. El gestor descarga el paquete oficial cuando se pulsa **Instalar / actualizar**.
+No necesita sudo. La AppImage contiene el gestor gráfico; el ejecutable Codex se descarga desde las publicaciones oficiales de OpenAI cuando se pulsa **Instalar / actualizar**.
 
 ## Funciones
 
-- Descarga el `.deb` x64 desde el endpoint oficial de OpenAI.
-- Comprueba el nombre del paquete, arquitectura y versión declarada.
-- Extrae el paquete sin root con `dpkg-deb -x`.
-- Instala en `~/.local/opt/chatgpt`.
-- Copia el icono oficial del paquete a `~/.local/share/icons/hicolor/256x256/apps/chatgpt.png`.
-- Crea el acceso GNOME `~/.local/share/applications/chatgpt.desktop` en la categoría `Development;IDE;` (Programación).
-- Crea el comando `~/.local/bin/chatgpt`.
-- Comprueba la instalación y repara los accesos.
-- Desinstala los archivos gestionados sin borrar preferencias ni datos personales.
+- Consulta la última publicación de openai/codex.
+- Descarga el binario oficial codex-x86_64-unknown-linux-musl.tar.gz.
+- Comprueba el nombre, origen y ejecución del binario descargado.
+- Instala y actualiza de forma atómica en el perfil del usuario.
+- Comprueba la versión instalada y la disponible.
+- Repara el lanzador de terminal y el acceso del menú GNOME.
+- Desinstala solo la copia administrada por esta herramienta.
+- Conserva ~/.codex, credenciales, sesiones, ajustes y proyectos.
 
-## Rutas
+## Rutas de instalación
 
-| Elemento | Ruta |
+| Elemento | Ubicación |
 |---|---|
-| Aplicación | `~/.local/opt/chatgpt` |
-| Ejecutable | `~/.local/opt/chatgpt/usr/lib/chatgpt/ChatGPT` |
-| Lanzador de terminal | `~/.local/bin/chatgpt` |
-| Menú GNOME | `~/.local/share/applications/chatgpt.desktop` |
-| Icono | `~/.local/share/icons/hicolor/256x256/apps/chatgpt.png` |
-| Versión gestionada | `~/.local/opt/chatgpt/.managed-version` |
+| Aplicación | ~/.local/opt/codex |
+| Ejecutable | ~/.local/opt/codex/codex |
+| Comando | ~/.local/bin/codex |
+| Menú GNOME | ~/.local/share/applications/codex.desktop |
+| Configuración y sesiones | ~/.codex (se conserva) |
 
 ## Requisitos
 
 - Linux x86_64.
-- Entorno gráfico con Tkinter (incluido en el AppImage).
-- `dpkg-deb` instalado en el sistema (habitual en Ubuntu/Debian).
-- Conexión a Internet.
-- Espacio libre suficiente: el paquete oficial supera los 500 MB.
-- El AppImage puede requerir soporte FUSE en la distribución.
+- Entorno gráfico con Tkinter (incluido en la AppImage del gestor).
+- Conexión a Internet para consultar y descargar Codex.
+- Soporte FUSE o ejecución compatible de AppImage en la distribución.
+
+La AppImage se compila en GitHub Actions. El gestor no ejecuta sudo, no instala paquetes del sistema y no modifica /usr, /opt ni la configuración global del sistema.
 
 ## Desarrollo
 
-```bash
-python3 src/chatgpt_manager.py
-```
+    python3 -m unittest discover -s tests -v
+    python3 src/codex_manager.py
 
-Para compilar y publicar, GitHub Actions construye el gestor en Ubuntu 20.04 y genera un AppImage x86_64. Los pushes a `main` o las etiquetas `v*` generan una publicación GitHub Release.
+GitHub Actions compila la AppImage, genera la guía PDF, calcula SHA256 y publica los archivos en un GitHub Release cuando se actualiza main.
 
-## Seguridad y límites
+## Fuente oficial
 
-- No ejecuta `sudo`, `apt install`, `dpkg -i` ni modifica `/usr`, `/opt` del sistema o repositorios APT.
-- Descarga el `.deb` por HTTPS desde `persistent.oaistatic.com`, dominio oficial utilizado por OpenAI.
-- La versión se obtiene de los metadatos del paquete `.deb`.
-- No se verifica una firma criptográfica independiente ni un hash publicado del archivo descargado.
-- El gestor solo instala el paquete x64; ARM64 no está incluido en esta primera versión.
-- No elimina `~/.config` ni datos personales al desinstalar.
-- La extracción local no resuelve dependencias ausentes del sistema.
-- ChatGPT Desktop para Linux está en preview; las funciones disponibles pueden variar.
+- Codex CLI: https://github.com/openai/codex
+- Instalación oficial: https://chatgpt.com/codex/install.sh
+- Documentación: https://developers.openai.com/codex
 
 ## Autoría
 
 **Desarrollador:** Francisco Javier Gallego Orellana  
 **Centro:** Punto Vuela Montejaque  
+Avenida Andalucía, 48 · 29360 Montejaque (Málaga)  
+Teléfono: 633 402 959  
+Correo: montejaque@puntosvuela.es  
+Web: https://puntosvuela.es/centros/montejaque
+
 **Licencia:** MIT

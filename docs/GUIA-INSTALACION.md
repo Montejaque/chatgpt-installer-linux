@@ -1,26 +1,52 @@
-# Guía de instalación y uso
+# Guía de instalación y uso — Codex Installer & Updater
 
-## 1. Ejecutar el gestor
+## 1. Descargar y ejecutar el gestor
 
-Descarga `ChatGPT-Installer-x86_64.AppImage`, ejecuta `chmod +x` y abre el archivo. No uses `sudo`.
+Descarga **Codex-Installer-Updater-x86_64.AppImage** desde la sección Releases del repositorio. En la carpeta de descarga ejecuta:
 
-## 2. Instalar o actualizar
+    chmod +x Codex-Installer-Updater-x86_64.AppImage
+    ./Codex-Installer-Updater-x86_64.AppImage
 
-Pulsa **Instalar / actualizar**. El gestor descarga el `.deb` oficial de OpenAI, comprueba sus metadatos, extrae el contenido en una carpeta temporal y lo instala dentro de tu perfil de usuario. El paquete puede superar los 500 MB.
+No uses sudo. La AppImage es el gestor gráfico; el ejecutable de Codex se descarga al instalar.
 
-## 3. Acceso desde GNOME
+## 2. Instalar o actualizar Codex
 
-El gestor crea `chatgpt.desktop` con `Categories=Development;IDE;` y copia el icono PNG oficial del paquete. GNOME lo clasifica como herramienta de Programación. Si no aparece de inmediato, cierra sesión y vuelve a entrar.
+Pulsa **Instalar / actualizar**. El gestor consulta la última publicación del repositorio oficial de OpenAI, descarga el archivo Linux x86_64, verifica que contiene el ejecutable esperado y comprueba que puede ejecutarse. La instalación se realiza en tu carpeta personal, sin modificar directorios del sistema.
 
-## 4. Comprobar y reparar
+## 3. Comprobar la versión
 
-- **Comprobar instalación:** muestra versión y ruta registradas.
-- **Reparar accesos:** vuelve a crear el lanzador de terminal, el icono y la entrada del menú.
+Pulsa **Comprobar versión** para consultar la publicación oficial y comparar la versión disponible con la instalada. Si hay una nueva versión, utiliza Instalar / actualizar.
 
-## 5. Desinstalar
+## 4. Accesos directos
 
-La desinstalación elimina únicamente la copia gestionada, el lanzador, el icono y el `.desktop`. No elimina preferencias, sesiones ni datos personales.
+El gestor crea el comando ~/.local/bin/codex y el acceso ~/.local/share/applications/codex.desktop. El acceso del menú GNOME inicia Codex CLI en un terminal.
 
-## 6. Compatibilidad
+## 5. Reparar accesos
 
-La aplicación oficial Linux está soportada en Ubuntu 24.04/26.04, Debian 13, Fedora 43/44 y Arch actual. Ubuntu 20.04 no está certificado por OpenAI. Extraer el `.deb` sin root no implica que sus bibliotecas sean compatibles con Ubuntu 20.04.
+Si el comando o el acceso del menú desaparecen, pulsa **Reparar accesos**. Esta opción vuelve a crear ambos accesos a partir de la instalación gestionada.
+
+## 6. Desinstalar
+
+Pulsa **Desinstalar** y confirma. Se elimina la copia gestionada de Codex y sus accesos directos. No se elimina ~/.codex, donde Codex conserva configuración, credenciales y sesiones, ni se borran tus proyectos.
+
+## 7. Ubicaciones
+
+- Aplicación: ~/.local/opt/codex
+- Comando: ~/.local/bin/codex
+- Menú GNOME: ~/.local/share/applications/codex.desktop
+- Datos personales: ~/.codex (se conserva)
+
+## 8. Requisitos y compatibilidad
+
+Linux x86_64, entorno gráfico, conexión a Internet y soporte AppImage/FUSE. El gestor no necesita sudo, APT ni permisos de administrador. Esta versión gestiona el binario Linux x86_64 de Codex CLI.
+
+## 9. Desarrollador y contacto
+
+**Desarrollador:** Francisco Javier Gallego Orellana  
+**Centro:** Punto Vuela Montejaque  
+**Dirección:** Avenida Andalucía, 48 · 29360 Montejaque (Málaga)  
+**Teléfono:** 633 402 959  
+**Correo:** montejaque@puntosvuela.es  
+**Web:** https://puntosvuela.es/centros/montejaque
+
+Identidad visual: negro #171717 y amarillo #F3D54E.
