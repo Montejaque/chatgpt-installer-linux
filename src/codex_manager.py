@@ -64,6 +64,9 @@ def find_codex_executable():
     candidates.extend([
         BIN_DIR / "codex",
         HOME / ".npm-global" / "bin" / "codex",
+        HOME / ".local" / "share" / "npm" / "bin" / "codex",
+        HOME / ".npm" / "bin" / "codex",
+        HOME / "bin" / "codex",
         Path("/usr/local/bin/codex"),
         Path("/usr/bin/codex"),
     ])
@@ -285,10 +288,22 @@ class ManagerApp:
             font=("DejaVu Sans", 8), padx=7, pady=5, cursor="hand2")
 
     def open_guide(self):
-        guide = (HOME / ".local" / "share" / "doc" / "codex-installer" / "Guia-Codex-Installer-Puntos-Vuela-Montejaque.pdf")
-        if guide.is_file():
-            webbrowser.open(guide.as_uri())
-        else:
+        filename = "Guia-Codex-Installer-Puntos-Vuela-Montejaque.pdf"
+        destination = HOME / ".local" / "share" / "doc" / "codex-installer" / filename
+        bundled = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent)) / filename
+        candidates = [bundled, destination]
+        source = next((item for item in candidates if item.is_file()), None)
+        try:
+            if source is None:
+                raise FileNotFoundError("No se ha encontrado la guía PDF incluida en la aplicación.")
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            if source.resolve() != destination.resolve():
+                shutil.copy2(str(source), str(destination))
+            subprocess.Popen(["xdg-open", str(destination)], stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL, start_new_session=True)
+        except Exception as exc:
+            messagebox.showerror("No se pudo abrir la guía", str(exc) +
+                "\\n\\nPuedes descargarla desde la página de versiones de GitHub.", parent=self.root)
             webbrowser.open("https://github.com/Montejaque/chatgpt-installer-linux/releases/latest")
 
     def log(self, text):

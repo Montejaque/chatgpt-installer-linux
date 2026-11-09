@@ -30,10 +30,10 @@ jobs:
             export PATH="$HOME/.local/bin:$PATH"
             python3 -m unittest discover -s tests -v
             python3 -m py_compile src/codex_manager.py docs/generate_guide.py
-            python3 -m PyInstaller --noconfirm --clean --onefile --name codex-installer src/codex_manager.py
-            test -s dist/codex-installer
             python3 docs/generate_guide.py dist/Guia-Codex-Installer-Puntos-Vuela-Montejaque.pdf
             test -s dist/Guia-Codex-Installer-Puntos-Vuela-Montejaque.pdf
+            python3 -m PyInstaller --noconfirm --clean --onefile --add-data "dist/Guia-Codex-Installer-Puntos-Vuela-Montejaque.pdf:." --name codex-installer src/codex_manager.py
+            test -s dist/codex-installer
           '
           sudo chown -R "$(id -u):$(id -g)" dist
       - name: Prepare AppDir
