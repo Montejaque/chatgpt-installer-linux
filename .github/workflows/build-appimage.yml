@@ -62,15 +62,6 @@ jobs:
           cd dist
           sha256sum Codex-Installer-Updater-x86_64.AppImage Guia-Codex-Installer-Puntos-Vuela-Montejaque.pdf > SHA256SUMS.txt
           cat SHA256SUMS.txt
-      - uses: actions/upload-artifact@v4
-        with:
-          name: Codex-Installer-Updater-Linux-x86_64
-          path: |
-            dist/Codex-Installer-Updater-x86_64.AppImage
-            dist/Guia-Codex-Installer-Puntos-Vuela-Montejaque.pdf
-            dist/SHA256SUMS.txt
-          if-no-files-found: error
-          retention-days: 30
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
