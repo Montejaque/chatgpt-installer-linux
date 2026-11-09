@@ -1,0 +1,68 @@
+name: Build and publish ChatGPT Installer AppImage
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: chatgpt-installer-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  appimage:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build against Ubuntu 20.04 libraries
+        run: |
+          docker run --rm -v "$PWD:/work" -w /work ubuntu:20.04 bash -lc '
+            set -eux
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update
+            apt-get install -y python3 python3-pip python3-tk python3-dev build-essential
+            python3 -m pip install --user --upgrade "pip<22" "pyinstaller==6.19.0"
+            export PATH="$HOME/.local/bin:$PATH"
+            python3 -m PyInstaller --noconfirm --clean --onefile --name chatgpt-installer src/chatgpt_manager.py
+            test -s dist/chatgpt-installer
+          '
+          sudo chown -R "$(id -u):$(id -g)" dist
+      - name: Prepare AppDir
+        run: |
+          mkdir -p AppDir/usr/bin dist
+          install -m 0755 dist/chatgpt-installer AppDir/usr/bin/chatgpt-installer
+          chmod +x AppDir/AppRun
+          sudo apt-get update
+          sudo apt-get install -y squashfs-tools file desktop-file-utils
+          desktop-file-validate AppDir/chatgpt-installer.desktop
+      - name: Download appimagetool
+        run: |
+          curl --fail --location --retry 3 https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage --output appimagetool
+          chmod +x appimagetool
+      - name: Build AppImage
+        env:
+          ARCH: x86_64
+          APPIMAGE_EXTRACT_AND_RUN: '1'
+        run: |
+          ./appimagetool AppDir dist/ChatGPT-Installer-x86_64.AppImage
+          chmod +x dist/ChatGPT-Installer-x86_64.AppImage
+          test -s dist/ChatGPT-Installer-x86_64.AppImage
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ChatGPT-Installer-x86_64-AppImage
+          path: dist/ChatGPT-Installer-x86_64.AppImage
+          if-no-files-found: error
+          retention-days: 30
+      - name: Publish GitHub Release
+        if: github.event_name == 'push'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v1.0.{0}', github.run_number) }}
+          target_commitish: main
+          name: ChatGPT Installer ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v1.0.{0}', github.run_number) }}
+          generate_release_notes: true
+          files: dist/ChatGPT-Installer-x86_64.AppImage
