@@ -48,24 +48,53 @@ def latest_release():
         raise RuntimeError("La publicación oficial no indica una versión.")
     return tag, asset
 
+def runtime_environment(extra_bin=None):
+    """Build a GUI-safe PATH including per-user Node/NVM package locations."""
+    entries = []
+    if extra_bin:
+        entries.append(str(extra_bin))
+    entries.extend([
+        str(BIN_DIR),
+        str(HOME / ".npm-global" / "bin"),
+        str(HOME / ".local" / "share" / "npm" / "bin"),
+        str(HOME / ".npm" / "bin"),
+        str(HOME / ".bun" / "bin"),
+        str(HOME / ".volta" / "bin"),
+        str(HOME / ".asdf" / "shims"),
+    ])
+    nvm_root = HOME / ".nvm" / "versions" / "node"
+    if nvm_root.is_dir():
+        entries.extend(str(p) for p in sorted(nvm_root.glob("*/bin"), reverse=True))
+    existing = os.environ.get("PATH", "").split(os.pathsep)
+    return os.pathsep.join(dict.fromkeys([p for p in entries + existing if p]))
+
 def run_codex_version(binary):
+    binary = Path(binary).expanduser()
+    env = os.environ.copy()
+    env["PATH"] = runtime_environment(binary.parent)
     result = subprocess.run([str(binary), "--version"], stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT, universal_newlines=True, timeout=20)
+        stderr=subprocess.STDOUT, universal_newlines=True, timeout=30, env=env)
     if result.returncode:
         raise RuntimeError(result.stdout.strip() or "No se pudo ejecutar Codex.")
-    return result.stdout.strip().splitlines()[0]
+    output = result.stdout.strip().splitlines()
+    if not output:
+        raise RuntimeError("Codex no devolvió información de versión.")
+    return output[0]
 
 def find_codex_executable():
-    """Find Codex in the managed location, PATH, and common per-user npm/NVM paths."""
-    candidates = [INSTALL_DIR / "codex"]
-    path_hit = shutil.which("codex")
+    """Find the user's existing Codex CLI without requiring a login-shell PATH."""
+    candidates = [INSTALL_DIR / "codex", BIN_DIR / "codex"]
+    path_env = runtime_environment()
+    path_hit = shutil.which("codex", path=path_env)
     if path_hit:
         candidates.append(Path(path_hit))
     candidates.extend([
-        BIN_DIR / "codex",
         HOME / ".npm-global" / "bin" / "codex",
         HOME / ".local" / "share" / "npm" / "bin" / "codex",
         HOME / ".npm" / "bin" / "codex",
+        HOME / ".bun" / "bin" / "codex",
+        HOME / ".volta" / "bin" / "codex",
+        HOME / ".asdf" / "shims" / "codex",
         HOME / "bin" / "codex",
         Path("/usr/local/bin/codex"),
         Path("/usr/bin/codex"),
@@ -77,19 +106,21 @@ def find_codex_executable():
     seen = set()
     for candidate in candidates:
         try:
-            resolved = candidate.expanduser().resolve(strict=True)
-            key = str(resolved)
+            # Keep the original path: executing a resolved npm symlink can bypass
+            # its shebang or package shim and fail to locate the Node runtime.
+            path = candidate.expanduser()
+            key = str(path.absolute())
             if key in seen:
                 continue
             seen.add(key)
-            if resolved.is_file() and os.access(str(resolved), os.X_OK):
-                return resolved
-        except (OSError, RuntimeError):
+            if path.is_file() and os.access(str(path), os.X_OK):
+                return path
+        except OSError:
             continue
     return None
 
 def installed_details():
-    """Return (version, executable path), including installations outside this manager."""
+    """Return (version, executable path), including per-user installations."""
     binary = find_codex_executable()
     if binary is None:
         if INSTALL_DIR.exists():
@@ -97,8 +128,8 @@ def installed_details():
         return None, None
     try:
         return run_codex_version(binary), str(binary)
-    except Exception:
-        return "Instalación dañada", str(binary)
+    except Exception as exc:
+        return "No se pudo consultar la versión (" + str(exc) + ")", str(binary)
 
 def installed_version():
     return installed_details()[0]
