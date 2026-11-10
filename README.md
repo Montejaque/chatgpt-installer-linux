@@ -1,6 +1,6 @@
 # Codex Installer & Updater — Punto Vuela Montejaque
 
-Gestor gráfico para **OpenAI Codex CLI** en Linux x86_64. Permite consultar la versión oficial, instalar, actualizar, comprobar la instalación, reparar accesos y desinstalar la copia administrada.
+Gestor gráfico para **ChatGPT Desktop y OpenAI Codex CLI** en Linux x86_64. Instala/actualiza ChatGPT desde el paquete DEB oficial de OpenAI sin root y gestiona Codex CLI de forma independiente.
 
 > Este proyecto instala **Codex CLI**, el agente de programación que funciona en terminal. No instala ChatGPT Desktop ni la aplicación de escritorio Codex.
 
@@ -20,6 +20,8 @@ No necesita sudo. La AppImage contiene el gestor gráfico; el ejecutable Codex s
 ## Funciones
 
 - Consulta la última publicación de openai/codex.
+- Descarga e instala ChatGPT Desktop desde el DEB oficial `chatgpt_amd64.deb`, extrayéndolo en el perfil del usuario sin `sudo`.
+- Crea el acceso gráfico **ChatGPT** en el menú de aplicaciones con el icono original del paquete.
 - Descarga el binario oficial codex-x86_64-unknown-linux-musl.tar.gz.
 - Comprueba el nombre, origen y ejecución del binario descargado.
 - Instala y actualiza de forma atómica en el perfil del usuario.
@@ -32,10 +34,10 @@ No necesita sudo. La AppImage contiene el gestor gráfico; el ejecutable Codex s
 
 | Elemento | Ubicación |
 |---|---|
-| Aplicación | ~/.local/opt/codex |
+| Aplicación gráfica ChatGPT | ~/.local/opt/chatgpt |\n| Aplicación CLI Codex | ~/.local/opt/codex |
 | Ejecutable | ~/.local/opt/codex/codex |
 | Comando | ~/.local/bin/codex |
-| Menú GNOME | ~/.local/share/applications/codex.desktop |
+| Menú GNOME ChatGPT | ~/.local/share/applications/chatgpt.desktop |
 | Configuración y sesiones | ~/.codex (se conserva) |
 
 ## Requisitos

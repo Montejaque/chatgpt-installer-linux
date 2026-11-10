@@ -234,7 +234,7 @@ def install_or_update_chatgpt(progress=None, log=None):
     temp_root = Path(tempfile.mkdtemp(prefix="chatgpt-deb-", dir=str(LOCAL_OPT)))
     deb_path, extracted = temp_root / "chatgpt_amd64.deb", temp_root / "rootfs"
     extracted.mkdir()
-    backup = LOCAL_OPT / "chatgpt.previous"
+    backup = temp_root / "previous-chatgpt"
     try:
         log("Descargando el paquete DEB oficial de ChatGPT…")
         request = urllib.request.Request(CHATGPT_DEB_URL, headers={"User-Agent": USER_AGENT})
@@ -257,8 +257,6 @@ def install_or_update_chatgpt(progress=None, log=None):
             universal_newlines=True, timeout=180)
         find_chatgpt_binary(extracted)
         progress(70)
-        if backup.exists():
-            shutil.rmtree(backup)
         if CHATGPT_APP_DIR.exists():
             os.replace(str(CHATGPT_APP_DIR), str(backup))
         try:
@@ -476,7 +474,7 @@ class ManagerApp:
         self.busy = True
         self.progress["value"] = 0
         self.progress_label.configure(text="En curso…")
-        for button in (self.install_btn, self.check_btn, self.repair_btn, self.remove_btn):
+        for button in (self.install_btn, self.chatgpt_btn, self.check_btn, self.repair_btn, self.remove_btn):
             button.configure(state="disabled")
         def worker():
             try:
