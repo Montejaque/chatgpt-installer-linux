@@ -14,7 +14,9 @@ INSTALL_DIR = LOCAL_OPT / "codex"
 BIN_DIR = HOME / ".local" / "bin"
 LAUNCHER = BIN_DIR / "codex"
 DESKTOP_DIR = HOME / ".local" / "share" / "applications"
-DESKTOP_FILE = DESKTOP_DIR / "codex.desktop"
+DESKTOP_FILE = DESKTOP_DIR / "codex.desktop"  # legacy manager-owned entry, removed and never recreated
+CHATGPT_DESKTOP_FILE = DESKTOP_DIR / "chatgpt.desktop"
+CHATGPT_APP_DIR = HOME / ".local" / "opt" / "chatgpt"
 ICON_DIR = HOME / ".local" / "share" / "icons" / "hicolor" / "256x256" / "apps"
 CHATGPT_ICON_SOURCE = HOME / ".local" / "opt" / "chatgpt" / "usr" / "lib" / "chatgpt" / "resources" / "icon-chatgpt.png"
 CHATGPT_ICON = ICON_DIR / "codex-chatgpt.png"
@@ -154,28 +156,41 @@ def is_managed_file(path, marker):
 def check_access_conflicts():
     if (LAUNCHER.exists() or LAUNCHER.is_symlink()) and not is_managed_file(LAUNCHER, LAUNCHER_MARKER):
         raise RuntimeError("Ya existe ~/.local/bin/codex y no pertenece a este gestor. No se sobrescribirá.")
-    if (DESKTOP_FILE.exists() or DESKTOP_FILE.is_symlink()) and not is_managed_file(DESKTOP_FILE, DESKTOP_MARKER):
-        raise RuntimeError("Ya existe el acceso codex.desktop y no pertenece a este gestor. No se sobrescribirá.")
+
+def ensure_chatgpt_menu_entry(log=None):
+    """Preserve the graphical ChatGPT launcher, restoring its shipped entry only if missing."""
+    log = log or (lambda value: None)
+    DESKTOP_DIR.mkdir(parents=True, exist_ok=True)
+    if CHATGPT_DESKTOP_FILE.is_file():
+        log("Se conserva el acceso gráfico ChatGPT existente.")
+        return str(CHATGPT_DESKTOP_FILE)
+    if CHATGPT_APP_DIR.is_dir():
+        for candidate in CHATGPT_APP_DIR.rglob("*.desktop"):
+            try:
+                content = candidate.read_text(encoding="utf-8", errors="replace")
+                names = [line.strip().lower() for line in content.splitlines()]
+                if "[Desktop Entry]" in content and ("name=chatgpt" in names or "name=openai chatgpt" in names):
+                    shutil.copy2(str(candidate), str(CHATGPT_DESKTOP_FILE))
+                    log("Se ha restaurado el acceso gráfico ChatGPT desde la instalación existente.")
+                    return str(CHATGPT_DESKTOP_FILE)
+            except OSError:
+                continue
+    log("No se encontró el acceso gráfico ChatGPT original. No se creará un acceso Codex CLI en el menú.")
+    return None
 
 def write_access_files():
     if not (INSTALL_DIR / "codex").is_file():
         raise RuntimeError("No se encuentra Codex. Instala o actualiza primero.")
     check_access_conflicts()
     BIN_DIR.mkdir(parents=True, exist_ok=True)
-    DESKTOP_DIR.mkdir(parents=True, exist_ok=True)
-    icon_value = "openai"
-    if CHATGPT_ICON_SOURCE.is_file():
-        ICON_DIR.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(str(CHATGPT_ICON_SOURCE), str(CHATGPT_ICON))
-        icon_value = str(CHATGPT_ICON)
+    # Keep the CLI command available in the terminal, but never create a GUI menu item for it.
     LAUNCHER.write_text('#!/bin/sh\n' + LAUNCHER_MARKER + '\nexec "$HOME/.local/opt/codex/codex" "$@"\n', encoding="utf-8")
     LAUNCHER.chmod(0o755)
-    desktop = ("[Desktop Entry]\nVersion=1.0\nType=Application\nName=Codex CLI\n"
-        "GenericName=Agente de programación\nComment=Inicia OpenAI Codex CLI en un terminal\n"
-        "Exec=" + str(LAUNCHER) + "\nIcon=" + icon_value + "\nTerminal=true\nCategories=Development;IDE;\n"
-        + DESKTOP_MARKER + "\n")
-    DESKTOP_FILE.write_text(desktop, encoding="utf-8")
-    DESKTOP_FILE.chmod(0o644)
+    # Remove only the legacy menu entry created by older versions of this manager.
+    if is_managed_file(DESKTOP_FILE, DESKTOP_MARKER):
+        DESKTOP_FILE.unlink()
+    ensure_chatgpt_menu_entry()
+
 
 def install_or_update(progress=None, log=None):
     progress = progress or (lambda value: None)
@@ -234,7 +249,7 @@ def install_or_update(progress=None, log=None):
 
 def repair_access():
     write_access_files()
-    return "Accesos reparados correctamente."
+    return "Comando de terminal reparado. El acceso gráfico ChatGPT se conserva; no se crea un acceso Codex CLI en el menú."
 
 def uninstall_managed():
     removed = []
@@ -245,13 +260,7 @@ def uninstall_managed():
         if is_managed_file(path, marker):
             path.unlink()
             removed.append(str(path))
-    # Remove only the icon copy created by this manager; never touch ChatGPT originals.
-    try:
-        if CHATGPT_ICON.is_file():
-            CHATGPT_ICON.unlink()
-            removed.append(str(CHATGPT_ICON))
-    except OSError:
-        pass
+    # Keep the graphical ChatGPT launcher and its original icon untouched.
     return removed
 
 class ManagerApp:
