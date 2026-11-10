@@ -210,20 +210,20 @@ def install_chatgpt_desktop_entry(binary):
     BIN_DIR.mkdir(parents=True, exist_ok=True)
     app_home = CHATGPT_APP_DIR / "usr" / "lib" / "chatgpt"
     CHATGPT_LAUNCHER.write_text(
-        '#!/bin/sh\\n' + CHATGPT_LAUNCHER_MARKER + '\\n'
-        + 'cd "' + str(app_home) + '" || exit 1\\n'
-        + 'exec "' + str(binary) + '" "$@"\\n', encoding="utf-8")
+        '#!/bin/sh\n' + CHATGPT_LAUNCHER_MARKER + '\n'
+        + 'cd "' + str(app_home) + '" || exit 1\n'
+        + 'exec "' + str(binary) + '" "$@"\n', encoding="utf-8")
     CHATGPT_LAUNCHER.chmod(0o755)
     icon_candidates = [app_home / "resources" / "icon-chatgpt.png",
         CHATGPT_APP_DIR / "usr" / "share" / "icons" / "hicolor" / "256x256" / "apps" / "chatgpt.png",
         CHATGPT_APP_DIR / "usr" / "share" / "pixmaps" / "chatgpt.png"]
     icon = next((p for p in icon_candidates if p.is_file()), None)
-    desktop = ("[Desktop Entry]\\nVersion=1.0\\nType=Application\\nName=ChatGPT\\n"
-        "GenericName=ChatGPT\\nComment=Aplicación gráfica de ChatGPT\\n"
-        "Exec=" + str(CHATGPT_LAUNCHER) + " %U\\n"
-        "Icon=" + (str(icon) if icon else "chatgpt") + "\\n"
-        "Terminal=false\\nCategories=Development;IDE;Utility;\\nStartupNotify=true\\n"
-        "X-Punto-Vuela-Managed=true\\n")
+    desktop = ("[Desktop Entry]\nVersion=1.0\nType=Application\nName=ChatGPT\n"
+        "GenericName=ChatGPT\nComment=Aplicación gráfica de ChatGPT\n"
+        "Exec=" + str(CHATGPT_LAUNCHER) + " %U\n"
+        "Icon=" + (str(icon) if icon else "chatgpt") + "\n"
+        "Terminal=false\nCategories=Development;IDE;Utility;\nStartupNotify=true\n"
+        "X-Punto-Vuela-Managed=true\n")
     CHATGPT_DESKTOP_FILE.write_text(desktop, encoding="utf-8")
     CHATGPT_DESKTOP_FILE.chmod(0o644)
 
