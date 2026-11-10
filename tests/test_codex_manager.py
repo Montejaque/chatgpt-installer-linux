@@ -24,6 +24,9 @@ class ReleaseMetadataTests(unittest.TestCase):
         self.assertEqual(manager.BUNDLED_CHATGPT_CODEX.name, "codex")
         self.assertEqual(manager.BUNDLED_CHATGPT_CODEX.parent.name, "resources")
 
+    def test_chatgpt_deb_url_is_official_linux_package(self):
+        self.assertEqual(manager.CHATGPT_DEB_URL, "https://persistent.oaistatic.com/codex-app-prod/linux/deb/latest/chatgpt_amd64.deb")
+
     def test_rejects_missing_asset(self):
         with self.assertRaises(RuntimeError):
             manager.select_linux_asset({"assets": []})

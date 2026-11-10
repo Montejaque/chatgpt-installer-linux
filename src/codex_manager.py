@@ -8,6 +8,7 @@ from tkinter import messagebox, ttk
 APP_NAME = "Codex Installer & Updater"
 REPO_API = "https://api.github.com/repos/openai/codex/releases/latest"
 ASSET_NAME = "codex-x86_64-unknown-linux-musl.tar.gz"
+CHATGPT_DEB_URL = "https://persistent.oaistatic.com/codex-app-prod/linux/deb/latest/chatgpt_amd64.deb"
 HOME = Path.home()
 LOCAL_OPT = HOME / ".local" / "opt"
 INSTALL_DIR = LOCAL_OPT / "codex"
@@ -17,6 +18,8 @@ DESKTOP_DIR = HOME / ".local" / "share" / "applications"
 DESKTOP_FILE = DESKTOP_DIR / "codex.desktop"  # legacy manager-owned entry, removed and never recreated
 CHATGPT_DESKTOP_FILE = DESKTOP_DIR / "chatgpt.desktop"
 CHATGPT_APP_DIR = HOME / ".local" / "opt" / "chatgpt"
+CHATGPT_LAUNCHER = BIN_DIR / "chatgpt-app"
+CHATGPT_LAUNCHER_MARKER = "# managed-by: chatgpt-deb-installer-punto-vuela"
 ICON_DIR = HOME / ".local" / "share" / "icons" / "hicolor" / "256x256" / "apps"
 CHATGPT_ICON_SOURCE = HOME / ".local" / "opt" / "chatgpt" / "usr" / "lib" / "chatgpt" / "resources" / "icon-chatgpt.png"
 CHATGPT_ICON = ICON_DIR / "codex-chatgpt.png"
@@ -192,6 +195,92 @@ def write_access_files():
     ensure_chatgpt_menu_entry()
 
 
+
+def find_chatgpt_binary(rootfs):
+    candidates = [rootfs / "usr" / "bin" / "chatgpt",
+                  rootfs / "usr" / "lib" / "chatgpt" / "chatgpt",
+                  rootfs / "opt" / "chatgpt" / "chatgpt"]
+    for candidate in candidates:
+        if candidate.is_file() and os.access(str(candidate), os.X_OK):
+            return candidate
+    raise RuntimeError("El DEB no contiene el ejecutable gráfico ChatGPT esperado.")
+
+def install_chatgpt_desktop_entry(binary):
+    DESKTOP_DIR.mkdir(parents=True, exist_ok=True)
+    BIN_DIR.mkdir(parents=True, exist_ok=True)
+    app_home = CHATGPT_APP_DIR / "usr" / "lib" / "chatgpt"
+    CHATGPT_LAUNCHER.write_text(
+        '#!/bin/sh\\n' + CHATGPT_LAUNCHER_MARKER + '\\n'
+        + 'cd "' + str(app_home) + '" || exit 1\\n'
+        + 'exec "' + str(binary) + '" "$@"\\n', encoding="utf-8")
+    CHATGPT_LAUNCHER.chmod(0o755)
+    icon_candidates = [app_home / "resources" / "icon-chatgpt.png",
+        CHATGPT_APP_DIR / "usr" / "share" / "icons" / "hicolor" / "256x256" / "apps" / "chatgpt.png",
+        CHATGPT_APP_DIR / "usr" / "share" / "pixmaps" / "chatgpt.png"]
+    icon = next((p for p in icon_candidates if p.is_file()), None)
+    desktop = ("[Desktop Entry]\\nVersion=1.0\\nType=Application\\nName=ChatGPT\\n"
+        "GenericName=ChatGPT\\nComment=Aplicación gráfica de ChatGPT\\n"
+        "Exec=" + str(CHATGPT_LAUNCHER) + " %U\\n"
+        "Icon=" + (str(icon) if icon else "chatgpt") + "\\n"
+        "Terminal=false\\nCategories=Development;IDE;Utility;\\nStartupNotify=true\\n"
+        "X-Punto-Vuela-Managed=true\\n")
+    CHATGPT_DESKTOP_FILE.write_text(desktop, encoding="utf-8")
+    CHATGPT_DESKTOP_FILE.chmod(0o644)
+
+def install_or_update_chatgpt(progress=None, log=None):
+    progress = progress or (lambda value: None)
+    log = log or (lambda value: None)
+    LOCAL_OPT.mkdir(parents=True, exist_ok=True)
+    temp_root = Path(tempfile.mkdtemp(prefix="chatgpt-deb-", dir=str(LOCAL_OPT)))
+    deb_path, extracted = temp_root / "chatgpt_amd64.deb", temp_root / "rootfs"
+    extracted.mkdir()
+    backup = LOCAL_OPT / "chatgpt.previous"
+    try:
+        log("Descargando el paquete DEB oficial de ChatGPT…")
+        request = urllib.request.Request(CHATGPT_DEB_URL, headers={"User-Agent": USER_AGENT})
+        with urllib.request.urlopen(request, timeout=180) as response, deb_path.open("wb") as output:
+            total = int(response.headers.get("Content-Length", "0") or 0)
+            received = 0
+            while True:
+                chunk = response.read(1024 * 1024)
+                if not chunk:
+                    break
+                output.write(chunk)
+                received += len(chunk)
+                if total:
+                    progress(min(45, 5 + int(40 * received / total)))
+        if deb_path.stat().st_size < 1024 * 1024:
+            raise RuntimeError("La descarga del DEB está incompleta o no es válida.")
+        log("Extrayendo ChatGPT sin permisos de administrador…")
+        subprocess.run(["dpkg-deb", "-x", str(deb_path), str(extracted)],
+            check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            universal_newlines=True, timeout=180)
+        find_chatgpt_binary(extracted)
+        progress(70)
+        if backup.exists():
+            shutil.rmtree(backup)
+        if CHATGPT_APP_DIR.exists():
+            os.replace(str(CHATGPT_APP_DIR), str(backup))
+        try:
+            os.replace(str(extracted), str(CHATGPT_APP_DIR))
+            installed_binary = find_chatgpt_binary(CHATGPT_APP_DIR)
+            install_chatgpt_desktop_entry(installed_binary)
+        except Exception:
+            if CHATGPT_APP_DIR.exists():
+                shutil.rmtree(CHATGPT_APP_DIR, ignore_errors=True)
+            if backup.exists():
+                os.replace(str(backup), str(CHATGPT_APP_DIR))
+            raise
+        if backup.exists():
+            shutil.rmtree(backup, ignore_errors=True)
+        progress(100)
+        log("ChatGPT gráfico instalado/actualizado desde el DEB oficial.")
+        log("Acceso del menú creado: " + str(CHATGPT_DESKTOP_FILE))
+        return str(CHATGPT_APP_DIR)
+    finally:
+        shutil.rmtree(temp_root, ignore_errors=True)
+
+
 def install_or_update(progress=None, log=None):
     progress = progress or (lambda value: None)
     log = log or (lambda value: None)
@@ -297,11 +386,12 @@ class ManagerApp:
 
         actions = tk.Frame(outer, bg="white")
         actions.pack(fill="x", pady=(0, 12))
-        self.install_btn = self.button(actions, "Instalar / actualizar", self.do_install)
+        self.install_btn = self.button(actions, "Instalar / actualizar Codex", self.do_install)
+        self.chatgpt_btn = self.button(actions, "Instalar / actualizar ChatGPT", self.do_install_chatgpt)
         self.check_btn = self.button(actions, "Comprobar versión", self.do_check)
         self.repair_btn = self.button(actions, "Reparar acceso", self.do_repair)
         self.remove_btn = self.button(actions, "Desinstalar y eliminar datos", self.do_uninstall)
-        for i, btn in enumerate((self.install_btn, self.check_btn, self.repair_btn, self.remove_btn)):
+        for i, btn in enumerate((self.install_btn, self.chatgpt_btn, self.check_btn, self.repair_btn, self.remove_btn)):
             btn.pack(side="left", padx=(0 if i == 0 else 8, 0), fill="x", expand=True)
 
         self.progress_label = tk.Label(outer, text="Preparado", bg="white", fg="#222222",
@@ -463,6 +553,16 @@ class ManagerApp:
             self.events.put(("progress_text", "Instalación completada"))
             self.events.put(("status", "Codex instalado: " + tag))
             self.events.put(("log", "Resultado: instalación completada correctamente."))
+        self.start(action)
+
+    def do_install_chatgpt(self):
+        def action():
+            self.events.put(("log", "Instalando la aplicación gráfica ChatGPT desde el DEB oficial…"))
+            install_or_update_chatgpt(
+                lambda n: self.events.put(("progress", n)),
+                lambda message: self.events.put(("log", message)))
+            self.events.put(("progress_text", "ChatGPT instalado correctamente"))
+            self.events.put(("status", "Aplicación gráfica ChatGPT instalada"))
         self.start(action)
 
     def do_check(self):
